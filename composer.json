@@ -1,0 +1,22 @@
+{
+    "name": "t1mmen/opauth-timely",
+    "description": "Opauth strategy for Timely",
+    "keywords": ["authentication","auth","timely", "opauth", "oauth", "timetracking"],
+    "homepage": "https://github.com/t1mmen/opauth-timely",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Timm Stokke",
+            "email": "timm@stokke.me"
+        }
+    ],
+    "require": {
+        "php": ">=5.2.0",
+        "opauth/opauth": ">=0.4.0"
+    },
+    "autoload": {
+        "psr-0": {
+            "": "."
+        }
+    }
+}

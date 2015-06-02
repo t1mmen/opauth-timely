@@ -1,6 +1,6 @@
 <?php
 /**
- * Slack strategy for Opauth
+ * Timely strategy for Opauth
  *
  * Based on work by U-Zyn Chua (http://uzyn.com)
  *
@@ -14,9 +14,9 @@
 
 
 /**
- * Slack strategy for Opauth
+ * Timely strategy for Opauth
  *
- * @package			Opauth.Slack
+ * @package			Opauth.Timely
  */
 class TimelyStrategy extends OpauthStrategy {
 
@@ -28,7 +28,7 @@ class TimelyStrategy extends OpauthStrategy {
 	/**
 	 * Optional config keys, without predefining any default values.
 	 */
-	public $optionals = array();
+	public $optionals = array('redirect_uri');
 
 	/**
 	 * Optional config keys with respective default values, listed as associative arrays
@@ -44,6 +44,7 @@ class TimelyStrategy extends OpauthStrategy {
 	public function request() {
 		$url = 'https://api.timelyapp.com/1.0/oauth/authorize';
 		$params = array(
+			'response_type' => 'code',
 			'client_id' => $this->strategy['client_id'],
 			'redirect_uri' => $this->strategy['redirect_uri']
 		);
@@ -66,8 +67,11 @@ class TimelyStrategy extends OpauthStrategy {
 			$params = array(
 				'code' => $code,
 				'client_id' => $this->strategy['client_id'],
-				'client_secret' => $this->strategy['client_secret']
+				'client_secret' => $this->strategy['client_secret'],
+				'redirect_uri' => $this->strategy['redirect_uri'],
+				'grant_type' => 'authorization_code',
 			);
+
 
 			if (!empty($this->strategy['state'])) $params['state'] = $this->strategy['state'];
 
@@ -79,20 +83,21 @@ class TimelyStrategy extends OpauthStrategy {
 				$user = $this->user($results['access_token']);
 
 				$this->auth = array(
-					'uid' => $user['basics']['user_id'],
-					'info' => array(),
+					'uid' => $user['id'],
+					'info' => array(
+						'urls' => array(
+							'api_url' => 'https://api.timelyapp.com/1.0/'.$user['account_id']
+						)),
 					'credentials' => array(
-						'token' => $results['access_token']
+						'token' => $results['access_token'],
+						'refresh_token' => $results['refresh_token'],
 					),
 					'raw' => $user
 				);
 
-				$this->mapProfile($user, 'user.real_name', 'info.name');
-				$this->mapProfile($user, 'user.name', 'info.nickname');
-				$this->mapProfile($user, 'user.profile.first_name', 'info.first_name');
-				$this->mapProfile($user, 'user.profile.last_name', 'info.last_name');
-				$this->mapProfile($user, 'user.profile.email', 'info.email');
-				$this->mapProfile($user, 'user.profile.image_48', 'info.image');
+				$this->mapProfile($user, 'name', 'info.name');
+				$this->mapProfile($user, 'email', 'info.email');
+				$this->mapProfile($user, 'avatar', 'info.image');
 
 				$this->callback();
 			}
@@ -120,29 +125,35 @@ class TimelyStrategy extends OpauthStrategy {
 	}
 
 	/**
-	 * Queries Slack API for user info
+	 * Queries Timely API for user info
 	 *
 	 * @param string $access_token
 	 * @return array Parsed JSON results
 	 */
 	private function user($access_token) {
-		$user = $this->serverGet('https://slack.com/api/auth.test', array('token' => $access_token), null, $headers);
 
-		if (!empty($user)) {
-			$basics = $this->recursiveGetObjectVars(json_decode($user));
+		$options['http']['header'] = "Content-Type: application/json";
+		$options['http']['header'] .= "\r\nAccept: application/json";
+		$options['http']['header'] .= "\r\nAuthorization: Bearer ".$access_token;
 
-			// Get detailed info:
-			$getDetails = $this->serverGet('https://slack.com/api/users.info', array('token' => $access_token, 'user' => $basics['user_id']), null, $headers);
-			$details = $this->recursiveGetObjectVars(json_decode($getDetails));
+		$accountDetails = $this->serverGet('https://api.timelyapp.com/1.0/accounts', array(), $options, $headers);
 
-			$details['basics'] = $basics;
+		if (!empty($accountDetails)) {
 
-			return $details;
+			// Assume first account is the active one.
+			$account = $this->recursiveGetObjectVars(json_decode($accountDetails,true))[0];
+
+			$url = 'https://api.timelyapp.com/1.0/'.$account['id'].'/users/current';
+			$userDetails = $this->serverGet($url, array(), $options, $headers);
+
+			$user = $this->recursiveGetObjectVars(json_decode($userDetails,true));
+
+			return $user;
 		}
 		else {
 			$error = array(
 				'code' => 'userinfo_error',
-				'message' => 'Failed when attempting to query Slack API for user information',
+				'message' => 'Failed when attempting to query Timely API for user information',
 				'raw' => array(
 					'response' => $user,
 					'headers' => $headers

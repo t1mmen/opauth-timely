@@ -82,9 +82,16 @@ class TimelyStrategy extends OpauthStrategy {
 
 				$user = $this->user($results['access_token']);
 
+				// Look in raw response for more image options
+				$avatar = null;
+				if (isset($user['avatar']) && isset($user['avatar']['medium_retina'])) {
+					$avatar = $user['avatar']['medium_retina'];
+				}
+
 				$this->auth = array(
 					'uid' => $user['id'],
 					'info' => array(
+						'image' => $avatar,
 						'urls' => array(
 							'api_url' => 'https://api.timelyapp.com/1.0/'.$user['account_id']
 						)),
@@ -97,7 +104,6 @@ class TimelyStrategy extends OpauthStrategy {
 
 				$this->mapProfile($user, 'name', 'info.name');
 				$this->mapProfile($user, 'email', 'info.email');
-				$this->mapProfile($user, 'avatar', 'info.image');
 
 				$this->callback();
 			}
